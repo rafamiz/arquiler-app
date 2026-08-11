@@ -298,6 +298,8 @@ body.modo-login .topbar, body.modo-login main { display: none; }
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
 }
+/* el display:flex de arriba le ganaba al atributo hidden y el login tapaba la app */
+#login-pantalla[hidden] { display: none; }
 .login-caja {
   background: var(--superficie);
   border: 1px solid var(--borde);
