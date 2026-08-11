@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alquileres · Panel de gestión</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<section id="login-pantalla" hidden>
+  <form id="form-login" class="login-caja">
+    <div class="login-logo">🏢</div>
+    <h2>Alquileres</h2>
+    <p class="sub">Entrá para ver los datos sincronizados.</p>
+    <div class="campo">
+      <label>Usuario</label>
+      <input name="usuario" autocomplete="username" required>
+    </div>
+    <div class="campo">
+      <label>Contraseña</label>
+      <input name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <p id="login-error" class="login-error"></p>
+    <button type="submit" class="btn ancho-total">Entrar</button>
+  </form>
+</section>
+
+<header class="topbar">
+  <div class="marca">
+    <h1>🏢 Alquileres</h1>
+    <span class="sub">precios por IPC · cobros · facturación ARCA</span>
+    <span class="nube-grupo">
+      <span id="nube-estado" class="nube"></span>
+      <button class="salir" data-action="salir" title="Cerrar sesión">salir</button>
+    </span>
+  </div>
+  <nav class="tabs">
+    <button class="tab activa" data-action="tab" data-tab="resumen">Resumen</button>
+    <button class="tab" data-action="tab" data-tab="cobros">Cobros del mes</button>
+    <button class="tab" data-action="tab" data-tab="deptos">Departamentos</button>
+    <button class="tab" data-action="tab" data-tab="ipc">IPC</button>
+    <button class="tab" data-action="tab" data-tab="backup">Backup</button>
+  </nav>
+</header>
+
+<main id="view"></main>
+
+<!-- ====== Modal: alta / edición de departamento ====== -->
+<dialog id="dlg-depto">
+  <h3 id="dlg-depto-titulo">Nuevo departamento</h3>
+  <form id="form-depto" method="dialog">
+    <input type="hidden" name="id">
+    <div class="form-grid">
+      <div class="campo ancho">
+        <label>Nombre / dirección *</label>
+        <input name="nombre" required placeholder="Av. Corrientes 1234 5°B">
+      </div>
+
+      <fieldset>
+        <legend>Inquilino</legend>
+        <div class="campo"><label>Nombre</label><input name="inqNombre"></div>
+        <div class="campo"><label>DNI</label><input name="inqDni"></div>
+        <div class="campo"><label>Mail</label><input name="inqMail" type="email"></div>
+        <div class="campo"><label>Teléfono</label><input name="inqTel"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Contrato</legend>
+        <div class="campo"><label>Desde *</label><input name="desde" type="month" required></div>
+        <div class="campo"><label>Hasta *</label><input name="hasta" type="month" required></div>
+        <div class="campo">
+          <label>Tipo de ajuste</label>
+          <select name="ajuste">
+            <option value="ipc">Por IPC</option>
+            <option value="usd">Dólares, monto fijo</option>
+            <option value="fijo">Pesos, monto fijo</option>
+          </select>
+        </div>
+        <div class="campo" id="campo-cada-meses">
+          <label>Ajusta cada (meses)</label>
+          <input name="cadaMeses" type="number" min="1" max="12" value="4">
+        </div>
+        <div class="campo" id="campo-calculo">
+          <label>Cálculo del ajuste</label>
+          <select name="calculo">
+            <option value="simple">Suma simple (como el Excel)</option>
+            <option value="compuesto">Acumulado compuesto</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label id="label-precio">Alquiler inicial ($)</label>
+          <input name="precioInicial" required inputmode="numeric" placeholder="500000">
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Cochera y depósito</legend>
+        <div class="campo check">
+          <input name="cochera" id="chk-cochera" type="checkbox">
+          <label for="chk-cochera">Incluye cochera</label>
+        </div>
+        <div class="campo">
+          <label>Extra mensual por cochera (opcional)</label>
+          <input name="cocheraMonto" inputmode="numeric" placeholder="0">
+        </div>
+        <div class="campo"><label>Depósito</label><input name="depMonto" inputmode="numeric"></div>
+        <div class="campo">
+          <label>Moneda del depósito</label>
+          <select name="depMoneda"><option>ARS</option><option>USD</option></select>
+        </div>
+        <div class="campo check">
+          <input name="depDevuelto" id="chk-dev" type="checkbox">
+          <label for="chk-dev">Depósito ya devuelto</label>
+        </div>
+      </fieldset>
+
+      <div class="campo ancho">
+        <label>Notas</label>
+        <textarea name="notas" placeholder="Lo que quieras acordarte de este contrato…"></textarea>
+      </div>
+    </div>
+    <div class="form-pie">
+      <button type="button" class="btn ghost cerrar-dlg">Cancelar</button>
+      <button type="submit" class="btn">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ====== Modal: detalle mes a mes ====== -->
+<dialog id="dlg-detalle">
+  <div id="detalle-body"></div>
+  <div class="form-pie">
+    <button type="button" class="btn ghost cerrar-dlg">Cerrar</button>
+  </div>
+</dialog>
+
+<input type="file" id="file-import" accept=".json,application/json" hidden>
+
+<script src="ipc-data.js"></script>
+<script src="mis-datos.js"></script>
+<script src="config.js"></script>
+<script src="cloud.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
