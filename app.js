@@ -509,8 +509,8 @@ function renderIpc() {
       const futuro = ymToNum(k) > ymToNum(MES_ACTUAL);
       return `<div class="ipc-celda ${futuro ? 'futuro' : ''}">
         <label>${nombre}</label>
-        <input type="number" step="0.1" inputmode="decimal" data-ipc="${k}"
-          value="${v != null ? esc(v) : ''}" placeholder="—" ${futuro ? 'disabled' : ''}>
+        <input type="number" step="0.01" inputmode="decimal" data-ipc="${k}"
+          value="${v != null ? esc(Number(v).toFixed(2)) : ''}" placeholder="—" ${futuro ? 'disabled' : ''}>
       </div>`;
     }).join('');
     tablas += `<section class="panel"><h3>${y}</h3><div class="ipc-grid">${celdas}</div></section>`;
@@ -525,29 +525,70 @@ function renderIpc() {
   ${tablas}`;
 }
 
+// Fuentes del IPC (variación mensual, nivel general):
+//  1) apis.datos.gob.ar: serie oficial del INDEC con precisión completa ⇒ dos decimales.
+//  2) api.argentinadatos.com: respaldo, publica los valores ya redondeados a un decimal.
+const IPC_URL_INDEC = 'https://apis.datos.gob.ar/series/api/series/'
+  + '?ids=145.3_INGNACUAL_DICI_M_38&start_date=2020-01&limit=1000&format=json';
+const IPC_URL_RESPALDO = 'https://api.argentinadatos.com/v1/finanzas/indices/inflacion';
+
+// dos decimales (2.1137… → 2.11)
+function redondearIpc(v) {
+  return Math.round(v * 100) / 100;
+}
+
+// devuelve [['2026-07', 2.11], ...]
+async function bajarIpcIndec() {
+  const r = await fetch(IPC_URL_INDEC);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const json = await r.json(); // {data: [["2026-07-01", 0.0211377…], ...]}
+  const filas = (json && json.data) || [];
+  if (!filas.length) throw new Error('serie vacía');
+  // la serie viene como fracción: 0.0211377 = 2,11 %
+  return filas
+    .filter(f => Array.isArray(f) && typeof f[1] === 'number')
+    .map(f => [String(f[0]).slice(0, 7), redondearIpc(f[1] * 100)]);
+}
+
+async function bajarIpcRespaldo() {
+  const r = await fetch(IPC_URL_RESPALDO);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const datos = await r.json(); // [{fecha:"2024-01-31", valor:20.6}, ...]
+  return datos
+    .filter(f => f && typeof f.valor === 'number')
+    .map(f => [String(f.fecha).slice(0, 7), redondearIpc(f.valor)]);
+}
+
 async function fetchIpc() {
   const status = $('#ipc-status');
   if (status) status.textContent = 'buscando datos…';
+
+  let filas = null, fuente = '';
   try {
-    const r = await fetch('https://api.argentinadatos.com/v1/finanzas/indices/inflacion');
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const datos = await r.json(); // [{fecha:"2024-01-31", valor:20.6}, ...]
-    let n = 0;
-    for (const fila of datos) {
-      const k = String(fila.fecha).slice(0, 7);
-      // la API trae la serie histórica completa; solo interesan los años de contratos modernos
-      if (k >= '2020-01' && /^\d{4}-\d{2}$/.test(k) && typeof fila.valor === 'number') {
-        state.ipc[k] = fila.valor;
-        n++;
-      }
-    }
-    guardar();
-    const s2 = $('#ipc-status');
-    if (s2) s2.textContent = `✓ listo: ${n} meses actualizados.`;
+    filas = await bajarIpcIndec();
+    fuente = 'INDEC';
   } catch (e) {
-    const s2 = $('#ipc-status');
-    if (s2) s2.textContent = '✗ no se pudo conectar (¿sin internet?). Cargalos a mano.';
+    try {
+      filas = await bajarIpcRespaldo();
+      fuente = 'argentinadatos, solo 1 decimal';
+    } catch (e2) {
+      const s0 = $('#ipc-status');
+      if (s0) s0.textContent = '✗ no se pudo conectar (¿sin internet?). Cargalos a mano.';
+      return;
+    }
   }
+
+  let n = 0;
+  for (const [k, v] of filas) {
+    // solo interesan los años de contratos modernos
+    if (k >= '2020-01' && /^\d{4}-\d{2}$/.test(k)) {
+      state.ipc[k] = v;
+      n++;
+    }
+  }
+  guardar();
+  const s2 = $('#ipc-status');
+  if (s2) s2.textContent = `✓ listo: ${n} meses actualizados (${fuente}).`;
 }
 
 /* ================= Vista: Backup ================= */
@@ -869,7 +910,7 @@ document.addEventListener('change', ev => {
   if (inp) {
     const k = inp.dataset.ipc;
     if (inp.value === '') delete state.ipc[k];
-    else state.ipc[k] = parseFloat(inp.value);
+    else state.ipc[k] = redondearIpc(parseFloat(inp.value));
     persistir(); // sin re-render para no perder el foco
     return;
   }
